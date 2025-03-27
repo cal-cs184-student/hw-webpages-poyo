@@ -1,0 +1,302 @@
+<html>
+	<head>
+		<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default'></script>
+		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+		<style>
+			h1 {
+				text-align: center;
+			}
+
+			.container {
+				margin: 0 auto;
+				padding: 60px 20%;
+			}
+
+			figure {
+				text-align: center;
+			}
+
+			img {
+				display: inline-block;
+			}
+
+			body {
+				font-family: 'Inter', sans-serif;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+		<h1>CS184/284A Spring 2025 Homework 3 Write-Up</h1>
+		<div style="text-align: center;">Name: Nicholas Tran</div>
+
+		<br>
+
+		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/sp25">cs184.eecs.berkeley.edu/sp25</a>
+		Link to GitHub repository:  <a href="https://github.com/cal-cs184-student/sp25-hw3-bipple">https://github.com/cal-cs184-student/sp25-hw3-bipple</a>
+		
+		<figure>
+			<img src="images/example_image.png" alt="Cornell Boxes with Bunnies" style="width:70%"/>
+			<figcaption>Bunny!</figcaption>
+		</figure>
+
+		<!--
+		We've already added one heading per part, to make your write-up as navigable when grading. Please fit your write-up within these sections!
+		-->
+
+		<h2>Overview</h2>
+		Through this project, I learned about what goes in to simulating lighting and the lengths people go to to make scenes as true to life as possible. On a more granular level, learning about how different spaces interact with eachother and how they must be constantly generated to properly raytrace. Understanding how rays bounce, intersect, and what that might mean was also very interesting. Most importantly, I get why my laptop blows up when I try to play cyberpunk.
+
+		<h2>Part 1: Ray Generation and Scene Intersection</h2>
+		To determine whether a ray hits a certain point, we first need to generate a ray that hits that point. This is easier said than done, so we dedicate generate_ray() to doing this for us. To begin, we scale our provided normalized coordinate according to its location in the camera space. Using this new point, we create a 3D vector representing the direction of a ray that hits our coordinate. Then, we multiply this vector by c2w, shifting this vector from the camera space to the world space and normalize it. Then, we create our final ray vector from pos to our normalized direction point and set its min_t and max_t. With the ability to generate rays, we can now take samples at pixel locations to get the light values at any location within our scene. To do this, we need to take random samples at this pixel to get a close approximation of the lights acting on the pixel. We start by using get_sample() to generate x and y values between 0 and 1 which when added to our pixel's coordinates. give us a random point within the pixel that we can test. Then, we normalize our sampled space before generating a ray that hits this sampled location using generate_ray(). We extract the estimated global illumination of this ray, saving rach result and averaging out to get a monte-carlo estimation of the illumination at our pixel.
+		<br></br>
+		For testing intersections with triangles, I used the moller trumbore algorithm to speed up my code. Generating the vectors e1, e2, s, s1, and s2, I follow the algorithm to extract the time, a, b1, and b2 (representing where between the triangle's 3 points the intersection occured) of the algorithm. The ray intersects if values a, b1, and b2 are between 0 and 1 and if t is between min_t and max_t. If there was an intersection, I update the given pointer isect with the correct values. Specifically for the normal, I used linear interpolation with out extracted a, b1, and b2, values against the normals of the triangle's corners to get the final normal.
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/CBspheres.png" width="400px"/>
+				  <figcaption>CBspheres</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/cow.png" width="400px"/>
+				  <figcaption>cow</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<!-- <p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/example_image.png" width="400px"/>
+				  <figcaption>Caption goes here.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/example_image.png" width="400px"/>
+				  <figcaption>Caption goes here.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/example_image.png" width="400px"/>
+				  <figcaption>Caption goes here.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/example_image.png" width="400px"/>
+				  <figcaption>Caption goes here.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div> -->
+		
+		<h2>Part 2: Bounding Volume Hierarchy</h2>
+		To generate my bounding volume heirarchy, I recursively call construct_bvh() starting on my root node and its resulting child nodes until all primitives have been divided into leaf nodes of size not exceeding max_leaf_size. To start, I increment a size counter when expanding the bounding box to get the number of primitives in the node. If the size is less than max_leaf_size, I simply just generate a new leaf node, assign its start and end values to the ones given in the parameter and return the leaf node. If it is too large however, I must divide the primitives in this node into two smaller child nodes. The heuristic I chose gets the center of the overarching bounding box of the node using bbox.centroid(). For each primitive, I check its x, y, and z values, assigning them into 3 of 6 possible lists (less_avg_x, abv_avg_x, less_avg_y, etc.) depending on whether the bounding box of the primitive is greater or less than the average at each plane. I take the absolute difference of the sizes of corresponding lists (eg. abv_x - les_x) and choose the axis that is most balanced with primitives below and above the average, meaning the resulting BVH nodes will be better at removing unnecessary primitives from intersection tests. I run construct_bvh recursively on the now designated left and right of the node with left node having the list of primitives below the average in terms of the chosen axis and vice versa with the right node.
+		<br></br>
+		For testing intersections with generic planes, I start by implementing intersect() in bounding box. Taking the minimum and maximum values of possible intersections along each axis using the top and bottom corners of the bounding box, subtracting by the origin's value of the ray at the corresponding axis, and dividing by said value. Two temp doubles temp0 and temp1 are assigned the minimum of the max values and the maximum of the min values, giving us the tightest range for the two intersections between the ray and the bounding box. If temp1 is greater than temp0, then I return false as the interval for the intersection is not valid. Otherwise I return true and update t0 and t1 to temp0 and temp1. In BVH, I test for intersections by traversing down our BVH starting at the root node. If the node being tested in intersect() is a leaf, I go through all primitives and determine if any of them intersect. If they do, I return true after iterating through all primitives to ensure they are all rendered. If the node isn't a root, I test the bounding box of the node to see if the ray intersects and if not, I return false. Otherwise, I run intersect on the left and right children of the node without checking its primitives. This prevents intersect from checking primitives that are clearly not within view of the ray as denoted by the bounding box being missed.
+		<br></br>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/planck.png" width="400px"/>
+				  <figcaption>Max Planck</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/lucy.png" width="400px"/>
+				  <figcaption>Lucy</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<h2>Part 3: Direct Illumination</h2>
+To implement direct lighting, I began by writing a function that could initialize the bsdf of an intersection which represents the relationship between an incoming light source and the diffusion of that light as it bounces off the surface. Since bsdf in this case diffuses the light in all possible directions, for the function f that we use to interact with the bsdf, I just divide the reflectance of the bsdf which represents all light that was reflected and not absorbed into the material by PI which represents the diffused light being sent in all directions. Now that we have our BSDF, let's apply this to our scene in pathtrace. Zero_bounce_radiance returns the light that results from no bounces of light. This means that all light from a scene being shaded by zero_bounce_radiance() wouldn't have anything being lit by light sources as the light emanating from those light sources wouldn't be able to reflect off the surfaces they hit. Instead, the only things visible in the scene should be things that emit light themselves so for zero_bounce_radiance, I just return the emission of light at the intersection.
+<br></br> 
+For one_bounce_radiance, we must start to consider how light sources illuminate the scene. This can be accomplished through two ways in our function, hemisphere lighting or light importance lighting. For hemisphere lighting, we start by taking a sample using hemisphereSampler's get_sample() function and create a version of the sample in the world space which we’ll call wSample. We then create a ray from hit_p which represents where the light ray parameter intersected with the object, to the random direction wSample. We set min_t too EPS_F as always before checking for intersection with our new ray. If it does intersect, we use Monte Carlo estimation by multiplying the light emitted at the intersection, the reflectance at the intersection, cos(sample) and divided by pdf which is equal to the probability of us selecting that sample (for hemisphere’s case since any sample within the hemisphere is equally likely, pdf is equal to 1/2pi). We repeat this process, averaging multiple samples and returning the average.
+<br></br> 
+For light importance sampling, the process is similar but with a very key difference. Rather than sampling from anywhere in the hemisphere, we sample at the intersections directly hit by rays of light. Iterating through every light in the scene, we check if the light is a delta light. If it is, we only have to check one sample since every sample will return the same value. We generate a sample using sample_L, giving us the illumination at the intersection, the point where the ray hit, wi, the distance from the light source, and the pdf of the sample which is actually different between samples unlike hemisphere since the probability of certain samples are no longer equal. We then create a ray from our hit_p to sample_L, representing a shadow on our shaded point. That is why we actually check that there isn’t an intersection because if there was, the light would not reach hit_p. If there isn’t intersection, we conduct Monte Carlo estimation identical to hemisphere sampling and add this result to our total illumination for the point. If the light isn’t a delta light, we repeat the same process as if it was but taking multiple samples, averaging the samples and adding this average to the total illumination.
+In est_global_illumination(), we add the light from zero bounce and one bounce (with one_bounce just calling either hemisphere or importance sampling depending on parameters) to get the final illumination of the point.
+<br></br> 
+<div style="display: flex; flex-direction: column; align-items: center;">
+	<table style="width: 100%; text-align: center; border-collapse: collapse;">
+	  <tr>
+		<td style="text-align: center;">
+		  <img src="images/bunny_64_32.png" width="400px"/>
+		  <figcaption>Rendered with important lighting</figcaption>
+		</td>
+		<td style="text-align: center;">
+		  <img src="images/CBbunny_H_64_32.png" width="400px"/>
+		  <figcaption>Rendered with Hemisphere Lighting</figcaption>
+		</td>
+	  </tr>
+	</table>
+</div>
+<br></br>
+<p>Each image was sampled with a rate of 1 per pixel</p>
+<div style="display: flex; flex-direction: column; align-items: center;">
+	<table style="width: 100%; text-align: center; border-collapse: collapse;">
+	  <tr>
+		<td style="text-align: center;">
+		  <img src="images/dragon_1_1.png" width="400px"/>
+		  <figcaption>1 light ray</figcaption>
+		</td>
+		<td style="text-align: center;">
+		  <img src="images/dragon_1_4.png" width="400px"/>
+		  <figcaption>4 light rays</figcaption>
+		</td>
+	  </tr>
+	  <tr>
+		<td style="text-align: center;">
+		  <img src="images/dragon_1_16.png" width="400px"/>
+		  <figcaption>16 light rays</figcaption>
+		</td>
+		<td style="text-align: center;">
+		  <img src="images/dragon_1_64.png" width="400px"/>
+		  <figcaption>64 light rays</figcaption>
+		</td>
+	  </tr>
+	</table>
+</div>
+<br></br>
+Compared to hemisphere sampling, light importance sampling is a lot less noisy since each sample is on average, more likely to contribute to the final illumination of the scene since they are tied to the scene’s lights compared to hemisphere sampling’s random samples. Although with higher sampling rates, the difference is less noticeable. I think this is because hemisphere and light importance sampling both end up at very similar results. It’s just that light importance sampling gets there faster and with high sampling rates, most relevant potential samples can be assumed to have been used in hemisphere sampling just by extension of the probability.
+
+		<h2>Part 4: Global Illumination</h2>
+		In task 3, we implemented direct illumination which covers the illumination caused by lights on surrounding scenery. In task 4, we will implement global illumination which, on top of direct illumination, accounts for the reflectance and absorption of light of objects in the scene. We start by creating a function similar to f in bsdf. Sample_f gives us the same result as f but also a pdf and sample wi. We use this for our main function at_least_one_bounce_radiance(). We can track how rays bounce after making contact with a surface by simulating the reflected ray and recursively calling and summing one_bounce_radiance() as the rays bounce off surfaces until we reach max_ray_depth. In addition, to reduce bias, we implemented “russian roulette” which introduces a possibility at each bounce for the ray to dissipate when it might normally not have. 
+		To implement this, we augment trace_pixel() to initialize each ray with a depth of max_ray_depth (we work backwards when checking for max_depth, starting at max and stopping when we hit 1). At each call of atleast_one_bounce, we first check that the depth of the ray is greater than 1 and in that case, return the one_bounce of the ray and intersection. If not, we confirm that the ray survived russian roulette with a probability of 1 - termination probability or that the ray has a depth of max_ray_depth which means the ray hasn’t bounced off anything yet and shouldn’t have a chance of being killed off. I then sample_f and create a ray representing the bouncing ray from hit_p to the world space transformation of wi and most importantly, this bounce ray has a depth of r.depth - 1. If this ray intersects, we simulate the ray bouncing off that intersection by recursively calling at_least_one_bounce on the child ray and use this in our Monte Carlo estimation of our ray. If is_accum_bounces, we increase our initial illumination by the Monte Carlo estimation. Otherwise, we set illumination equal to this estimation.
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/spheres_direct.png" width="400px"/>
+				  <figcaption>Only direct light</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/spheres_indirect.png" width="400px"/>
+				  <figcaption>Only indirect light</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>Comparing accumulated and unaccumulated bounces (note: generated with russian roulette so compares unaccumulated vs accumulated bounces and outputs relevant russian roulette renders)</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/bunny_1024_1_0.png" width="400px"/>
+				  <figcaption>accumulated = false, max ray depth: 0</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/bunny_1024_1_0.png" width="400px"/>
+				  <figcaption>accumulated = true, max ray depth: 0</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/bunny_1024_1_1.png" width="400px"/>
+				  <figcaption>accumulated = false, max ray depth: 1</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/bunny_1024_1_1.png" width="400px"/>
+				  <figcaption>accumulated = true, max ray depth: 1</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/bunny_1024_1_2.png" width="400px"/>
+				  <figcaption>accumulated = false, max ray depth: 2</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/bunnyo_1024_1_2.png" width="400px"/>
+				  <figcaption>accumulated = true, max ray depth: 2</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/bunny_1024_1_3.png" width="400px"/>
+				  <figcaption>accumulated = false, max ray depth: 3</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/bunnyo_1024_1_3.png" width="400px"/>
+				  <figcaption>accumulated = true, max ray depth: 3</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/bunny_1024_1_4.png" width="400px"/>
+				  <figcaption>accumulated = false, max ray depth: 4</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/bunnyo_1024_1_4.png" width="400px"/>
+				  <figcaption>accumulated = true, max ray depth: 4</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/bunny_1024_1_5.png" width="400px"/>
+				  <figcaption>accumulated = false, max ray depth: 5</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="images/bunnyo_1024_1_5.png" width="400px"/>
+				  <figcaption>accumulated = true, max ray depth: 5</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="images/bunnyo_1024_1_100.png" width="400px"/>
+				  <figcaption>accumulated = false, max ray depth: 100</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+
+		<p>Compares different sampling rates with l=4</p>
+<div style="display: flex; flex-direction: column; align-items: center;">
+	<table style="width: 100%; text-align: center; border-collapse: collapse;">
+	  <tr>
+		<td style="text-align: center;">
+		  <img src="images/walle1.png" width="400px"/>
+		  <figcaption>1 sample per pixel (spp)</figcaption>
+		</td>
+		<td style="text-align: center;">
+		  <img src="images/walle2.png" width="400px"/>
+		  <figcaption>2 spp</figcaption>
+		</td>
+	  </tr>
+	  <tr>
+		<td style="text-align: center;">
+		  <img src="images/walle4.png" width="400px"/>
+		  <figcaption>4 spp</figcaption>
+		</td>
+		<td style="text-align: center;">
+		  <img src="images/walle8.png" width="400px"/>
+		  <figcaption>8 spp</figcaption>
+		</td>
+	  </tr>
+	  <tr>
+		<td style="text-align: center;">
+		  <img src="images/walle16.png" width="400px"/>
+		  <figcaption>16 spp</figcaption>
+		</td>
+		<td style="text-align: center;">
+		  <img src="images/walle64.png" width="400px"/>
+		  <figcaption>64 spp</figcaption>
+		</td>
+	  </tr>
+	  <tr>
+		<td style="text-align: center;">
+		  <img src="images/walle1024.png" width="400px"/>
+		  <figcaption>1024 spp</figcaption>
+		</td>
+	  </tr>
+	</table>
+</div>
+
+		<p>We can see that the indirect lighting adds a lot of softness to the shadows and interesting, vivid hues to neighboring objects that can’t be picked up with rasterization even with approximations. The blending of colors caused by reflected light is very lifelike and makes the scene’s contrast less harsh as opposed too rasterization which can sometimes create jagged images</p>
+		<h2>Part 5: Adaptive Sampling</h2>
+		Adaptive sampling is an optimization technique for ray tracing that relies on the fact that not all pixels in the scene need to be sampled with high sampling rates. Adaptive sampling identifies if a pixel has converged before needing more samples. To implement it, I first created three new variables, s1, s2, and num_samples. At each sample, s1 aggregates the illumination of the samples and s2 aggregates the squares of the illuminations. Using these values, we can get the mew and standard deviation of the pixel which we in turn use to determine if the pixel is close enough to convergence that we no longer need to sample. 
+
+		</div>
+	</body>
+</html>
