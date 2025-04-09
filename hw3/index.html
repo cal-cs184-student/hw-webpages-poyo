@@ -264,7 +264,8 @@ Compared to hemisphere sampling, light importance sampling is a lot less noisy s
 			  </tr>
 			</table>
 		</div>
-
+		<p>We can see that the indirect lighting adds a lot of softness to the shadows and interesting, vivid hues to neighboring objects that can’t be picked up with rasterization even with approximations. The blending of colors caused by reflected light is very lifelike and makes the scene’s contrast less harsh as opposed too rasterization which can sometimes create jagged images</p>
+<br></br>
 		<p>Compares different sampling rates with l=4</p>
 <div style="display: flex; flex-direction: column; align-items: center;">
 	<table style="width: 100%; text-align: center; border-collapse: collapse;">
@@ -307,7 +308,6 @@ Compared to hemisphere sampling, light importance sampling is a lot less noisy s
 	</table>
 </div>
 
-		<p>We can see that the indirect lighting adds a lot of softness to the shadows and interesting, vivid hues to neighboring objects that can’t be picked up with rasterization even with approximations. The blending of colors caused by reflected light is very lifelike and makes the scene’s contrast less harsh as opposed too rasterization which can sometimes create jagged images</p>
 		<h2>Part 5: Adaptive Sampling</h2>
 		Adaptive sampling is an optimization technique for ray tracing that relies on the fact that not all pixels in the scene need to be sampled with high sampling rates. Adaptive sampling identifies if a pixel has converged before needing more samples. To implement it, I first created three new variables, s1, s2, and num_samples. At each sample, s1 aggregates the illumination of the samples and s2 aggregates the squares of the illuminations. Using these values, we can get the mew and standard deviation of the pixel which we in turn use to determine if the pixel is close enough to convergence that we no longer need to sample. 
 
